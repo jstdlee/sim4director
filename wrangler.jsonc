@@ -14,19 +14,21 @@
     {
       "binding": "DB",
       "database_name": "sim4director",
-      "database_id": "REPLACE_WITH_D1_ID",
+      "database_id": "327134ce-2c80-4070-b2f9-24f0e3451e5e",
       "migrations_dir": "migrations"
     }
   ],
+  "vectorize": [{ "binding": "QA_INDEX", "index_name": "sim4director-qa", "remote": true }],
   "durable_objects": {
     "bindings": [{ "name": "TutorAgent", "class_name": "TutorAgent" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TutorAgent"] }],
   "vars": {
-    "LLM_MODEL": "@cf/moonshotai/kimi-k2.6",
+    "LLM_MODEL": "@cf/deepseek-ai/deepseek-v4-pro-0813",
     "CLEF_MODEL": "@cf/cloudflare/clef",
     "CLEF_FLASH_MODEL": "@cf/cloudflare/clef-flash",
     "AI_GATEWAY_ID": "sim4director",
+    "SEARCH_PROVIDER": "ceramic",
     "CF_ACCOUNT_ID": "5dad3314e49aaa2cde5dc0f5cf43b785"
   },
   "observability": { "enabled": true }

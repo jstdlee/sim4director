@@ -2,7 +2,7 @@ import type { Env } from './env'
 
 // Access-token login. ACCESS_TOKEN is a Worker secret; several tokens may be given, comma-separated.
 // A valid login sets an HttpOnly cookie holding HMAC(token). Changing a token signs out its sessions.
-const COOKIE = 'sd_session'
+const COOKIE = 'oq_session'
 const MAX_AGE = 60 * 60 * 24 * 30
 const enc = new TextEncoder()
 
@@ -15,7 +15,7 @@ async function hmacHex(key: string, msg: string) {
 }
 const sha256 = async (s: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)))
 const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && (crypto.subtle as any).timingSafeEqual(a, b)
-const session = (token: string) => hmacHex(token, 'sd-session-v1')
+const session = (token: string) => hmacHex(token, 'oq-session-v1')
 
 function readCookie(req: Request) {
   const m = (req.headers.get('cookie') ?? '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]{64})`))

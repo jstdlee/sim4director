@@ -11,7 +11,8 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / 'hikari'
-NAMES = 'smile wave point think laugh cheer oops sleep study thumbs surprised sign head'.split()
+import sys
+NAMES = sys.argv[1:] or 'smile wave point think laugh cheer oops sleep study thumbs surprised sign head director clap'.split()
 OUT_WEB = ROOT.parent / 'public' / 'hikari'
 OUT_FULL = SRC / 'cut'
 T_LO, T_HI = 45.0, 110.0  # colour distance: below LO = background, above HI = character
@@ -64,5 +65,8 @@ def cut(name: str) -> None:
 
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == 'outfits':
+        SRC = ROOT / 'outfits'; OUT_WEB = ROOT.parent / 'public' / 'outfits'; OUT_FULL = SRC / 'cut'
+        NAMES = sys.argv[2:] or 'outfit_daily outfit_college outfit_school outfit_date outfit_sleep outfit_beach'.split()
     for n in NAMES:
         cut(n)

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Mascot from '../components/Mascot.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApp } from '../stores/app'
 
@@ -65,12 +66,12 @@ const ghosts = computed(() => Array.from({ length: frames.value / on.value }, (_
 let timer = 0
 onMounted(() => { timer = window.setInterval(() => { if (playing.value) frame.value = (frame.value + 1) % frames.value }, 1000 / 24) })
 onBeforeUnmount(() => clearInterval(timer))
-const ask = () => { app.chatContext = tab.value === 'shot' ? `Shot lab: ${focal.value} mm on ${S.value.name}, f/${stop.value}, subject at ${dist.value} m, background at ${bg.value} m. Result: ${shotSize.value[0]}, DOF ${fmt(dof.value.near)}–${fmt(dof.value.far)}.` : `Timing lab: bounce of ${frames.value} frames at 24 fps, ${ease.value} spacing, on ${on.value}s.`; app.chatOpen = true }
+const ask = () => { app.chatDraft = 'What do you think of my setup?'; app.pinnedContext = { kind: 'lab', label: tab.value === 'shot' ? 'Shot lab' : 'Timing lab', text: tab.value === 'shot' ? `Shot lab: ${focal.value} mm on ${S.value.name}, f/${stop.value}, subject at ${dist.value} m, background at ${bg.value} m. Result: ${shotSize.value[0]}, DOF ${fmt(dof.value.near)}–${fmt(dof.value.far)}.` : `Timing lab: bounce of ${frames.value} frames at 24 fps, ${ease.value} spacing, on ${on.value}s.` }; app.chatOpen = true }
 </script>
 
 <template>
   <div class="wrap">
-    <h1>Lab <span class="tr" translate="no">实验室 · ラボ</span></h1>
+    <header class="phead"><h1>Lab <span class="tr" translate="no">实验室 · ラボ</span></h1><Mascot pose="director" :size="96" /></header>
     <div class="row seg"><button class="chip" :class="{ on: tab === 'shot' }" @click="tab = 'shot'">Shot lab · 镜头 · ショット</button>
       <button class="chip" :class="{ on: tab === 'timing' }" @click="tab = 'timing'">Timing lab · 节奏 · タイミング</button>
       <span class="grow" /><button class="btn" @click="ask">Ask the tutor about this setup</button></div>

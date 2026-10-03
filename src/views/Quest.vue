@@ -19,7 +19,7 @@ const go = (d: number) => {
   else if (n >= list.value.length && BANK[level.value + 1]) router.push(`/quest/${level.value + 1}/0`)
 }
 const onKey = (e: KeyboardEvent) => {
-  if ((e.target as HTMLElement)?.closest('input,textarea') || app.openTerm || app.chatOpen || app.searchOpen) return
+  if ((e.target as HTMLElement)?.closest('input,textarea') || app.openTerm || app.chatOpen) return
   if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1)
 }
 let x0 = 0, y0 = 0

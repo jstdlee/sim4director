@@ -1,56 +1,129 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { BANK, LEVELS, TOTAL, SCENES, TERMS, CAT_MAP } from '../lib/content'
 import { useApp } from '../stores/app'
+import Mascot from '../components/Mascot.vue'
+import { usePageContext } from '../lib/context'
+
 const app = useApp()
 const done = (n: number) => app.levelProgress(BANK[n].map((q) => q.id))
 const firstOpen = (n: number) => Math.max(0, BANK[n].findIndex((q) => !app.results[q.id]))
-const catNames = (ids: string[]) => ids.map((id) => CAT_MAP[id].name).join(' · ')
-const seenTerms = () => TERMS.filter((t) => app.termStats[t.id]).length
+const complete = (n: number) => done(n) >= BANK[n].length
+const next = computed(() => LEVELS.find((l) => !complete(l.n)) ?? LEVELS[0])
+const started = computed(() => LEVELS.some((l) => done(l.n) > 0))
+// One scene a day, the same for everyone on that date.
+const today = computed(() => { const d = new Date(); const k = d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate(); return SCENES[k % SCENES.length] })
+
+usePageContext(() => ({
+  kind: 'page', label: `Journey · next: level ${next.value.n}`,
+  text: `Journey page. Progress: ${LEVELS.map((l) => `L${l.n} ${l.name} ${done(l.n)}/${BANK[l.n].length}`).join('; ')}. Next level: ${next.value.n} ${next.value.name}.`,
+}))
+
+// Speed lines that burst from behind Hikari (fixed lengths, so the banner looks the same on every visit).
+const RAYS = Array.from({ length: 36 }, (_, i) => {
+  const a = (i / 36) * Math.PI * 2
+  const r0 = 120 + ((i * 37) % 5) * 14
+  const r1 = 560
+  return { x1: 760 + Math.cos(a) * r0, y1: 210 + Math.sin(a) * r0, x2: 760 + Math.cos(a) * r1, y2: 210 + Math.sin(a) * r1, w: 1 + ((i * 13) % 3) }
+})
 </script>
 
 <template>
   <div class="wrap">
     <section class="hero">
-      <h1>Learn to direct, one decision at a time.</h1>
-      <p class="read muted">{{ TOTAL }} practice questions across eight levels, {{ TERMS.length }} linked terms in English, 中文 and 日本語, and {{ SCENES.length }} virtual scenes you build yourself. Compare every decision with Clef and ask the tutor why.</p>
-      <p class="muted small">Terms practiced: {{ seenTerms() }} / {{ TERMS.length }}</p>
+      <svg class="rays" viewBox="0 0 1000 420" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+        <line v-for="(r, k) in RAYS" :key="k" :x1="r.x1" :y1="r.y1" :x2="r.x2" :y2="r.y2" :stroke-width="r.w" />
+      </svg>
+      <div class="dots" aria-hidden="true" />
+      <div class="copy">
+        <h1>Learn to direct, <span class="mark">one decision</span> at a time.</h1>
+        <p class="read">{{ TOTAL }} questions in eight levels, {{ TERMS.length }} linked terms in English, <span lang="zh-CN">中文</span> and <span lang="ja">日本語</span>, and {{ SCENES.length }} scenes to build. Compare every decision with Clef, and ask Hikari why.</p>
+        <RouterLink class="btn primary cta" :to="`/quest/${next.n}/${firstOpen(next.n)}`">
+          {{ started ? 'Continue' : 'Start' }} level {{ next.n }} · {{ next.name }}
+        </RouterLink>
+      </div>
+      <div class="kon">
+        <img v-if="app.outfit" class="outfit" :src="`/outfits/${app.outfit}.webp`" alt="Hikari" />
+        <Mascot v-else pose="wave" :size="240" bob alt="Hikari waving" />
+        <span class="bubble say">{{ started ? 'Welcome back, director! ☀️' : 'Hi, I’m Hikari!' }}</span>
+      </div>
     </section>
 
+    <RouterLink class="today" :to="`/scenes/${today.id}`">
+      <span class="badge"><i class="fa-solid fa-sun" aria-hidden="true" /> Today’s scene</span>
+      <div class="grow"><b>{{ today.title }}</b> <span class="muted">· {{ today.genre }}</span><p class="muted">{{ today.goal }}</p></div>
+      <i class="fa-solid fa-arrow-right" aria-hidden="true" />
+    </RouterLink>
+
     <ol class="ladder">
-      <li v-for="l in LEVELS" :key="l.n" class="rung">
+      <li v-for="l in LEVELS" :key="l.n" class="rung" :class="{ done: complete(l.n), now: l.n === next.n }">
         <span class="n">{{ l.n }}</span>
         <div class="grow">
-          <h2>{{ l.name }} <span class="tr" translate="no">{{ l.zh }} · {{ l.ja }}</span></h2>
+          <h2>{{ l.name }} <small class="tr" translate="no"><span lang="zh-CN">{{ l.zh }}</span> · <span lang="ja">{{ l.ja }}</span></small></h2>
           <p class="muted">{{ l.blurb }}</p>
-          <div class="row cats"><span v-for="c in l.cats" :key="c" class="dot" :style="{ background: CAT_MAP[c].color }" :title="CAT_MAP[c].name" />
-            <span class="muted small">{{ catNames(l.cats) }}</span></div>
+          <div class="cats"><span v-for="c in l.cats" :key="c" class="dot" :style="{ background: CAT_MAP[c].color }" :title="CAT_MAP[c].name" /></div>
           <div class="meter" :aria-label="`${done(l.n)} of ${BANK[l.n].length} done`"><span :style="{ width: (done(l.n) / BANK[l.n].length) * 100 + '%' }" /></div>
         </div>
-        <RouterLink class="btn" :class="{ primary: done(l.n) < BANK[l.n].length }" :to="`/quest/${l.n}/${firstOpen(l.n)}`">
-          {{ done(l.n) === 0 ? 'Start' : done(l.n) >= BANK[l.n].length ? 'Review' : 'Continue' }} · {{ done(l.n) }}/{{ BANK[l.n].length }}
+        <RouterLink class="btn" :class="{ primary: l.n === next.n }" :to="`/quest/${l.n}/${firstOpen(l.n)}`">
+          {{ done(l.n) === 0 ? 'Start' : complete(l.n) ? 'Review' : 'Continue' }} · {{ done(l.n) }}/{{ BANK[l.n].length }}
         </RouterLink>
+        <Mascot v-if="complete(l.n)" class="stamp" pose="thumbs" :size="64" alt="Level complete" />
       </li>
       <li class="rung final">
-        <span class="n">★</span>
-        <div class="grow"><h2>Final test: build a scene <span class="tr" translate="no">搭建场景 · シーンを作る</span></h2><p class="muted">Get a story situation, then make every choice: story, shot, light, edit, sound, animation, Blender.</p></div>
+        <span class="n"><i class="fa-solid fa-star" aria-hidden="true" /></span>
+        <div class="grow"><h2>Final test: build a scene</h2><p class="muted">Get a story situation, then make every choice: story, shot, light, edit, sound, animation, Blender.</p></div>
         <RouterLink class="btn" to="/scenes">Open</RouterLink>
+        <Mascot class="stamp" pose="clap" :size="64" />
       </li>
     </ol>
   </div>
 </template>
 
 <style scoped>
-.hero { padding: 2.5rem 0 1.5rem; max-width: 46rem; }
-.ladder { list-style: none; padding: 0; margin: 0; display: grid; gap: .6rem; }
-.rung { display: flex; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); flex-wrap: wrap; }
+.hero {
+  position: relative; overflow: hidden; margin: 1rem 0 1.6rem; padding: 2rem clamp(1rem, 4vw, 2.5rem);
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .9fr); align-items: center; gap: 1rem;
+  background: var(--panel); border: 2px solid var(--edge); border-radius: 20px; box-shadow: 4px 4px 0 var(--edge);
+}
+.rays { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rays line { stroke: var(--edge); opacity: .09; stroke-linecap: round; }
+.dots { position: absolute; left: -40px; bottom: -40px; width: 260px; height: 200px; background: radial-gradient(var(--pop) 2.2px, transparent 2.6px) 0 0 / 12px 12px; -webkit-mask: radial-gradient(circle at 0 100%, #000 30%, transparent 72%); mask: radial-gradient(circle at 0 100%, #000 30%, transparent 72%); }
+.copy { position: relative; display: grid; gap: .4rem; justify-items: start; }
+.copy h1 { margin: 0; }
+.copy .read { margin: .3rem 0 .8rem; color: var(--muted); }
+.cta { font-size: 1.05rem; padding: .65rem 1.2rem; }
+.kon { position: relative; display: flex; justify-content: center; align-items: flex-end; min-height: 230px; }
+.say { position: absolute; top: 0; right: 0; transform: rotate(3deg); }
+.say::before { left: 22px; top: auto; bottom: -13px; transform: none; border-width: 12px 8px 0 8px; border-color: var(--edge) transparent transparent; }
+.say::after { left: 24px; top: auto; bottom: -8px; transform: none; border-width: 9px 6px 0 6px; border-color: var(--panel) transparent transparent; }
+
+.ladder { list-style: none; padding: 0; margin: 0; display: grid; gap: .8rem; }
+.rung { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) 10.5rem; gap: 1rem; align-items: center; padding: 1rem 1.1rem; border: 2px solid var(--edge); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
+.rung > .btn { justify-content: center; }
+.rung.now { background: #fff6dc; }
 .rung h2 { font-size: 1.15rem; margin: 0; }
-.rung p { margin: .1rem 0 .4rem; }
-.tr { font-weight: 400; font-size: .9rem; color: var(--muted); margin-left: .4rem; }
-.n { font-size: 2rem; font-weight: 800; width: 2.2rem; text-align: center; color: var(--vol); }
-.cats { gap: .35rem; margin-bottom: .5rem; }
-.dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; }
-.small { font-size: .85rem; }
-.meter { height: 6px; background: var(--ink); border-radius: 4px; overflow: hidden; max-width: 22rem; }
-.meter span { display: block; height: 100%; background: var(--call); }
+.rung p { margin: .1rem 0 .5rem; }
+.n { display: grid; place-items: center; flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 2px solid var(--edge); background: var(--pop); font-family: var(--display); font-size: 1.3rem; }
+.done .n { background: var(--call); color: #fff; }
+.meter { height: 10px; border: 1.5px solid var(--edge); background: var(--ink); border-radius: 99px; overflow: hidden; max-width: 22rem; }
+.meter span { display: block; height: 100%; background: var(--call); background-image: repeating-linear-gradient(-45deg, transparent 0 5px, rgb(255 255 255 / .3) 5px 9px); }
 .final { border-style: dashed; }
+.today { display: flex; gap: 1rem; align-items: center; margin: 0 0 1rem; padding: .8rem 1.1rem; background: var(--pop); border: 2px solid var(--edge); border-radius: 16px; box-shadow: var(--shadow); color: var(--paper); text-decoration: none; flex-wrap: wrap; }
+.today:hover { background: #ffe27a; }
+.today p { margin: .1rem 0 0; }
+.badge { font-weight: 800; font-size: .85rem; padding: .15rem .6rem; border: 2px solid var(--edge); border-radius: 999px; background: var(--panel); }
+.outfit { height: 250px; filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(2px 3px 0 rgb(26 23 18 / .18)); }
+.tr { font-family: var(--ui); font-size: .8rem; color: var(--muted); font-weight: 600; }
+.cats { display: flex; gap: .3rem; margin-bottom: .45rem; }
+.dot { width: .6rem; height: .6rem; border-radius: 50%; border: 1.5px solid var(--edge); }
+.stamp { position: absolute; right: -10px; top: -26px; transform: rotate(8deg); pointer-events: none; }
+
+@media (max-width: 720px) {
+  .hero { grid-template-columns: 1fr; padding-bottom: 0; }
+  .kon { min-height: 0; justify-content: flex-end; margin-top: -.5rem; }
+  .kon :deep(img) { height: 150px !important; }
+  .say { top: 10%; right: auto; left: 0; }
+  .rung { grid-template-columns: auto minmax(0, 1fr); }
+  .rung > .btn { grid-column: 1 / -1; }
+}
 </style>

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { usePageContext } from '../lib/context'
+import Mascot from '../components/Mascot.vue'
 import { useRoute } from 'vue-router'
 import { TERMS, TERM_MAP, TERM_WEIGHT, CATS, CAT_MAP, EXPLORE } from '../lib/content'
 import { useApp } from '../stores/app'
@@ -8,12 +10,9 @@ const app = useApp(), route = useRoute()
 const sel = ref<string>((route.query.term as string) || 'close_up')
 const cat = ref<string | null>(null)
 watch(() => route.query.term, (t) => { if (t) { sel.value = String(t); cat.value = null } })
-// A click on a term opens its connection graph in a modal.
-const open = ref(!!route.query.term)
-const show = (id: string) => { sel.value = id; open.value = true }
-const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && open.value && !app.openTerm) open.value = false }
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+// A click on a term opens the knowledge-map modal (MapModal, in App.vue) centered on it.
+onMounted(() => { if (route.query.term) app.mapTerm = String(route.query.term) })
+usePageContext(() => ({ kind: 'page', label: cat.value ? `Knowledge map · ${CAT_MAP[cat.value].name}` : 'Knowledge map', text: `Knowledge map page.${cat.value ? ` Department filter: ${CAT_MAP[cat.value].name}.` : ''} Departments: ${CATS.map((c) => c.name).join(', ')}.` }))
 
 const maxW = Math.max(...Object.values(TERM_WEIGHT))
 const cloud = computed(() => TERMS.filter((t) => !cat.value || t.cat === cat.value).sort((a, b) => a.name.localeCompare(b.name)).map((t) => {
@@ -60,8 +59,8 @@ const pickCat = (id: string) => { cat.value = cat.value === id ? null : id; next
 
 <template>
   <div class="wrap">
-    <h1>Knowledge map <span class="tr" translate="no">知识图谱 · 知識マップ</span></h1>
-    <p class="muted">Start with the atlas: each circle is a department of filmmaking. Lines show how many concepts link two departments. Click a department to filter the cloud below.</p>
+    <header class="phead"><h1>Knowledge map <span class="tr" translate="no"><span lang="zh-CN">知识图谱</span> · <span lang="ja">知識マップ</span></span></h1><Mascot pose="point" :size="96" /></header>
+    <p class="muted">Start with the atlas: each circle is a department of filmmaking. Lines show how many concepts link two departments. Click a department to filter the cloud below. Click a term to open its map, then its card.</p>
 
     <div class="graphbox">
       <svg viewBox="0 0 640 460" role="img" aria-label="Atlas of film-making departments">
@@ -78,32 +77,13 @@ const pickCat = (id: string) => { cat.value = cat.value === id ? null : id; next
     <h2>Term cloud <span v-if="cat" class="muted small">· {{ CAT_MAP[cat].name }} <button class="chip" @click="cat = null">show all</button></span></h2>
     <p class="muted small">Size shows how often a term appears in questions and scenes. Color shows mastery: green strong, amber shaky, red weak, grey unseen.</p>
     <div ref="cloudBox" class="cloud">
-      <button v-for="t in cloud" :key="t.id" class="word" :class="{ sel: t.id === sel }" :style="{ fontSize: t.size + 'rem', color: t.color }" @click="show(t.id)">{{ t.name }}</button>
+      <button v-for="t in cloud" :key="t.id" class="word" :class="{ sel: t.id === sel }" :style="{ fontSize: t.size + 'rem', color: t.color }" @click="app.mapTerm = t.id">{{ t.name }}</button>
     </div>
 
-    <Transition name="pop">
-    <div v-if="open" class="scrim" @click.self="open = false">
-    <section class="focus modal" role="dialog" aria-modal="true" :aria-label="`Connections of ${TERM_MAP[sel]?.name}`">
-    <div class="row head"><h2 class="grow">How {{ TERM_MAP[sel]?.name }} connects <span class="tr" translate="no"><span lang="zh-CN">{{ TERM_MAP[sel]?.zh }}</span> · <span lang="ja">{{ TERM_MAP[sel]?.ja }}</span></span></h2>
-      <button class="btn" @click="open = false">Close</button></div>
-    <p class="muted small">Click a node to move to it. Colors show departments.</p>
-    <div class="graphbox">
-      <svg :viewBox="`0 0 ${W} ${H}`" role="img" :aria-label="`Relationship graph for ${TERM_MAP[sel]?.name}`">
-        <line v-for="(e, k) in graph.edges" :key="k" :x1="e.a.x" :y1="e.a.y" :x2="e.b.x" :y2="e.b.y" :stroke="e.hot ? 'var(--vol)' : 'var(--line)'" :stroke-width="e.hot ? 1.6 : 1" />
-        <g v-for="n in graph.nodes" :key="n.id" class="node" tabindex="0" @click="sel = n.id" @keydown.enter="sel = n.id">
-          <circle :cx="n.x" :cy="n.y" :r="n.ring === 0 ? 10 : n.ring < 200 ? 6 : 4" :fill="CAT_MAP[TERM_MAP[n.id].cat].color" />
-          <text :x="n.x" :y="n.y - 12" text-anchor="middle" :font-size="n.ring === 0 ? 16 : n.ring < 200 ? 13 : 11" :fill="n.ring > 200 ? 'var(--muted)' : 'var(--paper)'">{{ TERM_MAP[n.id].name }}</text>
-        </g>
-      </svg>
-    </div>
-    <div class="row center"><button class="btn primary" @click="app.openTerm = sel">Show card detail</button></div>
-    </section>
-    </div>
-    </Transition>
 
     <h2 class="next">Explore next <span class="tr" translate="no">拓展 · 次に学ぶ</span></h2>
     <p class="muted small">Concepts outside this deck. Ask the tutor about any of them, or see Sources.</p>
-    <div class="row"><button v-for="x in EXPLORE" :key="x" class="chip" @click="app.chatContext = `Explain: ${x}`; app.chatOpen = true">{{ x }}</button></div>
+    <div class="row"><button v-for="x in EXPLORE" :key="x" class="chip" @click="app.chatDraft = `Explain: ${x}`; app.chatOpen = true">{{ x }}</button></div>
   </div>
 </template>
 

@@ -1,104 +1,147 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { TERMS, BANK, SCENES, CAT_MAP, LEVELS, SOURCES, EXPLORE } from '../lib/content'
+import { BANK, LEVELS, SCENES, TERMS, CAT_MAP, SOURCES, EXPLORE } from '../lib/content'
+import { plain } from '../lib/api'
 import { useApp } from '../stores/app'
 
-// One search box for terms (en / 中文 / 日本語), questions and scenes. Ctrl+K or / opens it.
-const app = useApp(), router = useRouter()
-const q = ref(''), cur = ref(0), input = ref<HTMLInputElement>()
+// One search for everything: pages, terms (en / 中文 / 日本語), questions, scenes, levels, sources, topics, and the web.
+// Opens with the search icon, Ctrl+K or Ctrl+P. No open/close animation (keyboard, many times a day).
+type Item = { group: string; icon: string; title: string; sub: string; hay: string; go: () => void }
 
-type Hit = { kind: 'Term' | 'Question' | 'Scene' | 'Level' | 'Page' | 'Source' | 'Topic' | 'Web' | 'Ask'; title: string; sub: string; go: () => void; score: number }
-const plain = (s: string) => s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, id, l) => l ?? id)
-const questions = Object.entries(BANK).flatMap(([lv, qs]) => qs.map((x, i) => ({ x, lv: Number(lv), i })))
-const PAGES: [string, string, string][] = [['/', 'Journey', 'levels, progress'], ['/cards', 'Concept cards', 'flashcards, all terms'], ['/map', 'Knowledge map', 'atlas, term cloud, connections'],
-  ['/scenes', 'Build a scene', 'final test, 100+ virtual scenes'], ['/lab', 'Lab', 'shot calculator, depth of field, field of view, bouncing ball timing'], ['/sources', 'Sources', 'books, channels, tools'], ['/settings', 'Settings', 'AI model, BYOK, OpenAI-compatible, progress, sign out']]
+const app = useApp()
+const router = useRouter()
+const open = ref(false)
+const q = ref('')
+const sel = ref(0)
+const input = ref<HTMLInputElement>()
+const list = ref<HTMLElement>()
+let returnTo: HTMLElement | null = null
+
+const low = (s: string) => s.toLowerCase()
+const PAGES: [string, string, string, string][] = [['/', 'Journey', 'fa-route', 'levels progress'], ['/cards', 'Concept cards', 'fa-layer-group', 'flashcards glossary'], ['/map', 'Knowledge map', 'fa-diagram-project', 'atlas graph cloud'], ['/scenes', 'Build a scene', 'fa-clapperboard', 'final test'], ['/lab', 'Lab', 'fa-camera', 'shot calculator depth of field fov lens bouncing ball timing'], ['/gallery', 'Gallery', 'fa-images', 'hikari art outfits poses'], ['/sources', 'Sources', 'fa-book-open', 'books channels tools'], ['/settings', 'Settings', 'fa-gear', 'model byok openai compatible search exa']]
+
+const index: Item[] = [
+  ...PAGES.map(([to, title, icon, kw]) => ({ group: 'Pages', icon, title, sub: '', hay: low(`${title} ${kw}`), go: () => router.push(to) })),
+  ...LEVELS.map((l) => ({ group: 'Levels', icon: 'fa-stairs', title: `Level ${l.n}: ${l.name}`, sub: `${l.zh} · ${l.ja} · ${l.blurb}`, hay: low(`${l.name} ${l.zh} ${l.ja} ${l.blurb} level ${l.n}`), go: () => router.push(`/quest/${l.n}/0`) })),
+  ...TERMS.map((t) => ({ group: 'Terms', icon: 'fa-book', title: t.name, sub: `${t.zh} · ${t.ja} · ${t.short}`, hay: low(`${t.name} ${t.id} ${t.zh} ${t.ja} ${CAT_MAP[t.cat].name} ${t.short}`), go: () => { app.openTerm = t.id } })),
+  ...SCENES.map((m) => ({ group: 'Scenes', icon: 'fa-clapperboard', title: m.title, sub: `${m.genre} · ${m.setup}`, hay: low(`${m.title} ${m.genre} ${m.setup} ${m.goal} ${m.tags.join(' ')} ${m.terms.join(' ')}`), go: () => router.push(`/scenes/${m.id}`) })),
+  ...SOURCES.flatMap((g) => g.links.map((l) => ({ group: 'Sources', icon: 'fa-book-open', title: l.name, sub: g.group, hay: low(`${l.name} ${g.group}`), go: () => window.open(l.url, '_blank', 'noopener') }))),
+  ...EXPLORE.map((x) => ({ group: 'Topics', icon: 'fa-compass', title: x, sub: 'Not in the deck yet · ask Hikari', hay: low(x), go: () => askHikari(`Explain: ${x}`) })),
+  ...LEVELS.flatMap((l) => BANK[l.n].map((qq, i) => ({
+    group: 'Questions', icon: 'fa-circle-question', title: qq.title, sub: `Level ${l.n} · ${plain(qq.scenario)}`,
+    hay: low(`${qq.title} ${plain(qq.scenario)} ${qq.steps.map((st) => plain(st.prompt)).join(' ')} ${qq.terms.join(' ')} ${qq.tags.join(' ')} level ${l.n} ${l.name}`),
+    go: () => router.push(`/quest/${l.n}/${i}`),
+  }))),
+]
+const LIMIT: Record<string, number> = { Pages: 4, Levels: 3, Terms: 8, Scenes: 6, Questions: 8, Sources: 4, Topics: 3 }
+
+// Every word must match; titles that start with the query rank first.
+const results = computed(() => {
+  const words = low(q.value).split(/\s+/).filter(Boolean)
+  if (!words.length) return [] as Item[]
+  const scored = index
+    .filter((it) => words.every((w) => it.hay.includes(w)))
+    .map((it) => { const t = low(it.title); return { it, score: (t.startsWith(words[0]) ? 3 : 0) + (words.every((w) => t.includes(w)) ? 2 : 0) - t.length / 200 } })
+    .sort((a, b) => b.score - a.score)
+  const out: Item[] = []
+  for (const g of Object.keys(LIMIT)) out.push(...scored.filter((x) => x.it.group === g).slice(0, LIMIT[g]).map((x) => x.it))
+  // Always offer: ask Hikari, or search the web.
+  const text = q.value.trim()
+  out.push({ group: 'More', icon: 'fa-comment-dots', title: `Ask Hikari: “${text}”`, sub: 'Saved answers come back at once; new ones use the AI', hay: '', go: () => askHikari(text) })
+  out.push({ group: 'More', icon: 'fa-globe', title: `Search the web: “${text}”`, sub: 'Cloudflare Web Search, Exa as backup', hay: '', go: () => searchWeb(text) })
+  return out
+})
+function askHikari(text: string) { app.chatDraft = text; app.chatOpen = true }
 const web = ref<{ title: string; url: string; text: string }[]>([]), webBusy = ref(false), webErr = ref('')
 async function searchWeb(query: string) {
-  webBusy.value = true; webErr.value = ''; web.value = []
+  open.value = true; webBusy.value = true; webErr.value = ''; web.value = []
   try {
-    const r = await fetch('/api/websearch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query }) })
-    const j: any = await r.json()
+    const j: any = await fetch('/api/websearch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query }) }).then((r) => r.json())
     web.value = j.results ?? []
-    if (!web.value.length) webErr.value = 'No web results. The server may need web search set up (see Settings).'
+    if (!web.value.length) webErr.value = j.error ?? 'No web results. Web search may need credits or an Exa key (Settings).'
   } catch { webErr.value = 'Web search failed.' }
   webBusy.value = false
 }
-
-const hits = computed<Hit[]>(() => {
-  const s = q.value.trim().toLowerCase()
-  if (!s) return []
-  const rank = (title: string, body: string) => (title.toLowerCase().startsWith(s) ? 3 : title.toLowerCase().includes(s) ? 2 : body.toLowerCase().includes(s) ? 1 : 0)
-  const out: Hit[] = []
-  for (const t of TERMS) {
-    const score = Math.max(rank(t.name, t.short), rank(t.zh, ''), rank(t.ja, ''))
-    if (score) out.push({ kind: 'Term', title: t.name, sub: `${t.zh} · ${t.ja} · ${CAT_MAP[t.cat].name}`, score: score + 1, go: () => (app.openTerm = t.id) })
-  }
-  for (const { x, lv, i } of questions) {
-    const score = rank(x.title, plain(x.scenario) + ' ' + x.steps.map((st) => plain(st.prompt) + ' ' + st.choices.map((c) => c.label).join(' ')).join(' '))
-    if (score) out.push({ kind: 'Question', title: x.title, sub: `Level ${lv} · ${plain(x.scenario).slice(0, 90)}`, score: score - (x.generated ? 0.5 : 0), go: () => router.push(`/quest/${lv}/${i}`) })
-  }
-  for (const l of LEVELS) { const score = Math.max(rank(l.name, l.blurb), rank(l.zh, ''), rank(l.ja, '')); if (score) out.push({ kind: 'Level', title: `Level ${l.n}: ${l.name}`, sub: `${l.zh} · ${l.ja} · ${l.blurb}`, score: score + 0.5, go: () => router.push(`/quest/${l.n}/0`) }) }
-  for (const [to, name, kw] of PAGES) { const score = rank(name, kw); if (score) out.push({ kind: 'Page', title: name, sub: kw, score: score + 0.5, go: () => router.push(to) }) }
-  for (const g of SOURCES) for (const l of g.links) { const score = rank(l.name, g.group); if (score) out.push({ kind: 'Source', title: l.name, sub: g.group, score, go: () => window.open(l.url, '_blank', 'noopener') }) }
-  for (const x of EXPLORE) { const score = rank(x, ''); if (score) out.push({ kind: 'Topic', title: x, sub: 'Not in the deck yet · ask the tutor', score, go: () => { app.chatContext = `Explain: ${x}`; app.chatOpen = true } }) }
-  for (const m of SCENES) {
-    const score = rank(m.title, m.genre + ' ' + m.setup)
-    if (score) out.push({ kind: 'Scene', title: m.title, sub: `${m.genre} · ${m.setup.slice(0, 90)}`, score, go: () => router.push(`/scenes/${m.id}`) })
-  }
-  const top = out.sort((a, b) => b.score - a.score).slice(0, 40)
-  top.push({ kind: 'Ask', title: `Ask the tutor: “${q.value.trim()}”`, sub: 'Saved answers come back at once; new ones use the AI', score: 0, go: () => { app.chatContext = ''; app.chatOpen = true; app.chatDraft = q.value.trim() } })
-  top.push({ kind: 'Web', title: `Search the web: “${q.value.trim()}”`, sub: 'Cloudflare Web Search, Exa as backup', score: 0, go: () => searchWeb(q.value.trim()) })
-  return top
+const counts = computed(() => {
+  const words = low(q.value).split(/\s+/).filter(Boolean)
+  const c: Record<string, number> = {}
+  if (words.length) for (const it of index) if (words.every((w) => it.hay.includes(w))) c[it.group] = (c[it.group] ?? 0) + 1
+  return c
 })
-watch(q, () => { cur.value = 0; web.value = []; webErr.value = '' })
-watch(() => app.searchOpen, (o) => { if (o) { q.value = ''; nextTick(() => input.value?.focus()) } })
+watch(q, () => { sel.value = 0; web.value = []; webErr.value = '' })
 
-function choose(h?: Hit) { if (!h) return; if (h.kind !== 'Web') app.searchOpen = false; h.go() }
-function onList(e: KeyboardEvent) {
-  if (e.key === 'ArrowDown') { cur.value = Math.min(cur.value + 1, hits.value.length - 1); e.preventDefault() }
-  else if (e.key === 'ArrowUp') { cur.value = Math.max(cur.value - 1, 0); e.preventDefault() }
-  else if (e.key === 'Enter') choose(hits.value[cur.value])
-  else if (e.key === 'Escape') app.searchOpen = false
+async function show() {
+  returnTo = document.activeElement as HTMLElement | null
+  open.value = true
+  await nextTick()
+  input.value?.focus()
+  input.value?.select()
 }
+function hide() { open.value = false; returnTo?.focus?.() }
+function run(it?: Item) { if (!it) return; if (it.icon === 'fa-globe') { it.go(); return } open.value = false; q.value = ''; it.go() }
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'ArrowDown') { e.preventDefault(); sel.value = Math.min(sel.value + 1, results.value.length - 1); scrollSel() }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); sel.value = Math.max(sel.value - 1, 0); scrollSel() }
+  else if (e.key === 'Enter') { e.preventDefault(); run(results.value[sel.value]) }
+  else if (e.key === 'Escape') { e.preventDefault(); hide() }
+}
+const scrollSel = () => nextTick(() => list.value?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
 const onGlobal = (e: KeyboardEvent) => {
-  const typing = (e.target as HTMLElement)?.closest('input,textarea,select')
-  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) { e.preventDefault(); app.searchOpen = true }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'p')) { e.preventDefault(); open.value ? hide() : show() }
 }
 onMounted(() => window.addEventListener('keydown', onGlobal))
 onBeforeUnmount(() => window.removeEventListener('keydown', onGlobal))
+defineExpose({ show })
 </script>
 
 <template>
-  <div v-if="app.searchOpen" class="scrim" @click.self="app.searchOpen = false">
-    <section class="box" role="dialog" aria-modal="true" aria-label="Search">
-      <input ref="input" v-model="q" placeholder="Search everything · 搜索 · 検索" aria-label="Search" @keydown="onList" />
-      <ul v-if="hits.length" class="list">
-        <li v-for="(h, i) in hits" :key="h.kind + h.title + i">
-          <button :class="{ cur: i === cur }" @mouseenter="cur = i" @click="choose(h)">
-            <span class="kind">{{ h.kind }}</span><span class="grow"><b>{{ h.title }}</b><br /><span class="muted small" translate="no">{{ h.sub }}</span></span>
-          </button>
-        </li>
-      </ul>
-      <p v-if="webBusy" class="muted empty">Searching the web…</p>
-      <p v-else-if="webErr" class="muted empty">{{ webErr }}</p>
-      <ol v-if="web.length" class="webres"><li v-for="w in web" :key="w.url"><a :href="w.url" target="_blank" rel="noopener">{{ w.title || w.url }}</a><p class="muted small">{{ w.text.slice(0, 180) }}</p></li></ol>
-      <p v-else-if="!q" class="muted empty">Type to search. ↑ ↓ to move, Enter to open, Esc to close.</p>
-    </section>
-  </div>
+  <button class="icon-btn" aria-label="Search everything (Ctrl+K)" title="Search everything (Ctrl+K)" @click="show"><i class="fa-solid fa-magnifying-glass" /></button>
+  <Teleport to="body">
+    <div v-if="open" class="scrim" @pointerdown.self="hide">
+      <div class="palette" role="dialog" aria-modal="true" aria-label="Search" @keydown="onKey">
+        <div class="field">
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true" />
+          <input id="site-search" ref="input" v-model="q" type="search" placeholder="Search everything · 搜索 · 検索…" autocomplete="off" spellcheck="false"
+            role="combobox" aria-expanded="true" aria-controls="search-results" :aria-activedescendant="results.length ? `sr-${sel}` : undefined" />
+          <kbd>Esc</kbd>
+        </div>
+        <div id="search-results" ref="list" class="results" role="listbox" aria-label="Results">
+          <template v-for="(it, i) in results" :key="i">
+            <div v-if="i === 0 || results[i - 1].group !== it.group" class="group" role="presentation">
+              {{ it.group }} <span>{{ counts[it.group] }}</span></div>
+            <div :id="`sr-${i}`" class="item" role="option" :aria-selected="i === sel" @pointerenter="sel = i" @click="run(it)">
+              <i :class="['fa-solid', 'fa-fw', it.icon]" aria-hidden="true" />
+              <div class="txt"><b>{{ it.title }}</b><small v-if="it.sub">{{ it.sub }}</small></div>
+            </div>
+          </template>
+          <p v-if="webBusy" class="empty">Searching the web…</p>
+          <p v-else-if="webErr" class="empty">{{ webErr }}</p>
+          <ol v-if="web.length" class="web"><li v-for="w in web" :key="w.url"><a :href="w.url" target="_blank" rel="noopener noreferrer">{{ w.title || w.url }}</a><small>{{ w.text.slice(0, 160) }}</small></li></ol>
+          <p v-if="!q" class="empty">Search {{ index.length }} items: pages, levels, terms in English / 中文 / 日本語, questions, scenes, sources and topics. Or ask Hikari, or search the web.</p>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
-.scrim { position: fixed; inset: 0; background: rgb(8 10 20 / .6); z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 1rem 1rem; }
-.box { width: min(640px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: .8rem; box-shadow: 0 20px 50px rgb(0 0 0 / .45); }
-input { font-size: 1.05rem; }
-.list { list-style: none; margin: .6rem 0 0; padding: 0; max-height: 55vh; overflow: auto; }
-.list button { display: flex; gap: .8rem; align-items: flex-start; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: .55rem .6rem; }
-.list button.cur { background: var(--ink); }
-.kind { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--vol); min-width: 4.8rem; padding-top: .2rem; }
-.small { font-size: .84rem; }
-.empty { margin: .8rem .3rem .3rem; }
-.webres { margin: .6rem 0 0; padding-left: 1.2rem; max-height: 35vh; overflow: auto; }
-.webres a { color: var(--vol); }
-.webres p { margin: .1rem 0 .5rem; }
+.scrim { position: fixed; inset: 0; z-index: 70; background: rgb(26 23 18 / .3); display: flex; justify-content: center; align-items: flex-start; padding: calc(10vh + env(safe-area-inset-top, 0px)) 16px 16px; }
+.palette { width: min(640px, 100%); max-height: min(560px, 78vh); display: flex; flex-direction: column; background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; box-shadow: 5px 5px 0 var(--edge); overflow: hidden; }
+.field { display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; border-bottom: 2px solid var(--edge); }
+.field i { color: var(--muted); }
+.field input { border: 0; padding: .2rem 0; font-size: 1.05rem; outline: none; background: transparent; }
+kbd { font: 700 .72rem var(--ui); padding: .1rem .4rem; border: 1.5px solid var(--edge); border-radius: 6px; color: var(--muted); }
+.results { overflow-y: auto; padding: .4rem; }
+.group { display: flex; justify-content: space-between; padding: .55rem .6rem .25rem; font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.item { display: flex; gap: .7rem; align-items: flex-start; padding: .5rem .6rem; border-radius: 10px; cursor: pointer; }
+.item i { margin-top: .2rem; color: var(--sun); }
+.item[aria-selected='true'] { background: var(--pop); }
+.txt { min-width: 0; display: grid; }
+.txt b { font-weight: 800; }
+.txt small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empty { margin: .8rem .6rem; color: var(--muted); }
+.web { margin: .4rem .6rem; padding-left: 1.2rem; }
+.web li { margin: .4rem 0; }
+.web small { display: block; color: var(--muted); }
 </style>

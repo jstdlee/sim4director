@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Mascot from '../components/Mascot.vue'
 import { computed, ref } from 'vue'
 import { SCENES, CAT_MAP } from '../lib/content'
 import { useApp } from '../stores/app'
@@ -13,7 +14,7 @@ const depts = (ids: string[]) => Array.from(new Set(ids))
 
 <template>
   <div class="wrap">
-    <h1>Build a scene <span class="tr" translate="no">搭建场景 · シーンを作る</span></h1>
+    <header class="phead"><h1>Build a scene <span class="tr" translate="no">搭建场景 · シーンを作る</span></h1><Mascot pose="clap" :size="96" /></header>
     <p class="read muted">Each scene is a story situation on a virtual set. You make the choices, department by department: story, camera, light, edit, sound, animation, Blender. Pass a scene with two thirds right; pass {{ Math.ceil(SCENES.length * 0.7) }} to complete the final test.</p>
     <p><strong>{{ passed }} / {{ SCENES.length }}</strong> passed</p>
     <div class="row filters"><button class="chip" :class="{ on: !g }" @click="g = null">All</button>

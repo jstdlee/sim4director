@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Mascot from '../components/Mascot.vue'
 import { SOURCES, EXPLORE } from '../lib/content'
 import { useApp } from '../stores/app'
 const app = useApp()
@@ -6,7 +7,7 @@ const app = useApp()
 
 <template>
   <div class="wrap">
-    <h1>Sources <span class="tr" translate="no">学习资源 · 参考資料</span></h1>
+    <header class="phead"><h1>Sources <span class="tr" translate="no">学习资源 · 参考資料</span></h1><Mascot pose="smile" :size="96" /></header>
     <p class="read muted">The cards give the core idea. These books, channels and tools go deeper. Read one story book, one directing book and one animation book first.</p>
     <div class="cols">
       <section v-for="g in SOURCES" :key="g.group" class="surface">
@@ -15,7 +16,7 @@ const app = useApp()
       </section>
     </div>
     <h2 class="next">Not in the deck yet</h2>
-    <div class="row"><button v-for="x in EXPLORE" :key="x" class="chip" @click="app.chatContext = `Explain: ${x}`; app.chatOpen = true">{{ x }}</button></div>
+    <div class="row"><button v-for="x in EXPLORE" :key="x" class="chip" @click="app.chatDraft = `Explain: ${x}`; app.chatOpen = true">{{ x }}</button></div>
   </div>
 </template>
 

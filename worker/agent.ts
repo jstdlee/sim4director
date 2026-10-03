@@ -1,8 +1,8 @@
 import { Agent, type Connection, type WSMessage } from 'agents'
-import type { Env, Byok, ChatMsg } from './env'
-import { chat, clef, TUTOR_SYSTEM } from './ai'
-import { embed, lookup, store } from './memory'
-import { webSearch, wantsSearch, asContext } from './search'
+import type { Env, Byok, ChatMsg, SearchOpts } from './env'
+import { chat, clef, modelName, TUTOR_SYSTEM } from './ai'
+import { lookup, store } from './cache'
+import { asContext, webSearch } from './search'
 
 interface TutorState { history: ChatMsg[] }
 
@@ -17,46 +17,58 @@ export class TutorAgent extends Agent<Env, TutorState> {
     if (data.type === 'reset') { this.setState({ history: [] }); return }
     if (data.type !== 'ask') return
 
-    const text = String(data.text).slice(0, 4000)
-    const ctx: string = data.context ? `\n\nCurrent screen context:\n${String(data.context).slice(0, 4000)}` : ''
-    const history: ChatMsg[] = [...this.state.history, { role: 'user' as const, content: text }].slice(-16)
-    const remember = (reply: string) => this.setState({ history: [...history, { role: 'assistant' as const, content: reply }].slice(-16) })
+    // The screen context travels inside the user turn, so each question keeps its own context in history
+    // and the newest one always wins over older chats.
+    const screen = data.context ? String(data.context).slice(0, 4000) : ''
+    const question = String(data.text).slice(0, 4000)
+    const userTurn = screen ? `(Background: what I see on screen now)\n${screen}\n\nMy question: ${question}` : question
+    const history: ChatMsg[] = [...this.state.history, { role: 'user' as const, content: userTurn }].slice(-16)
+    const byok = data.byok as Byok | undefined
+    const status = (text: string) => conn.send(JSON.stringify({ type: 'status', id: data.id, text }))
 
     try {
-      // 1. Similar question answered before? Reuse it (skip when the learner asks for a fresh answer).
-      const key = `${text}${data.context ? `\n${String(data.context).slice(0, 500)}` : ''}`
-      const vec = await embed(this.env, key).catch(() => [] as number[])
+      // 1. Asked before on this screen? Answer from the cache (exact, then similar question).
       if (!data.fresh) {
-        const hit = await lookup(this.env, 'tutor', vec).catch(() => null)
+        const hit = await lookup(this.env, 'tutor', screen, question)
         if (hit) {
-          remember(hit.answer)
-          conn.send(JSON.stringify({ type: 'answer', id: data.id, text: hit.answer, cached: { score: hit.score, question: hit.question }, sources: hit.sources }))
+          this.setState({ history: [...history, { role: 'assistant' as const, content: hit.answer }].slice(-16) })
+          conn.send(JSON.stringify({ type: 'answer', id: data.id, text: hit.answer, sources: hit.sources, cached: { similarity: hit.similarity, exact: hit.exact } }))
           return
         }
       }
 
-      // 2. Web search when asked for, or when the question needs outside facts.
-      let sources: { title: string; url: string }[] = [], web = '', provider = ''
-      if (data.web || wantsSearch(text)) {
-        const s = await webSearch(this.env, text).catch(() => ({ provider: 'none', results: [] }))
-        provider = s.provider
-        sources = s.results.map((r) => ({ title: r.title, url: r.url }))
-        if (s.results.length) web = `\n\nWeb search results (${s.provider}):\n${asContext(s.results)}`
-      }
-
-      // Fast intent routing with Clef-flash: which department the learner asks about.
-      const route = await clef(this.env, `${text}${ctx}`.slice(0, 6000), {
+      // 2. Clef-flash routes the question: topic for the term card, and whether it needs fresh web facts.
+      const route = await clef(this.env, `${question}\n\n${screen}`.slice(0, 6000), {
         topic: {
-          type: 'choice', instructions: 'Which area is the learner mainly asking about?',
+          type: 'choice', instructions: 'Which concept is the learner mainly asking about?',
           criteria: { story: 'structure, character, conflict, theme', camera: 'shots, lenses, composition, movement, light, color', editing: 'cuts, montage, sound, pacing', animation: '12 principles, timing, acting, rigs', blender: 'modeling, shading, rendering, Blender tools', other: 'anything else' },
         },
+        web: { type: 'noul', instructions: 'Does answering need recent or real-world facts (new software versions, news, release dates, festivals, who made a specific film) that a textbook would not contain?' },
       }, true)
+      const pWeb = Number(route.fields.web?.probs?.yes ?? 0)
+      const search = (data.search ?? {}) as SearchOpts
+      const wantWeb = search.mode === 'always' || (search.mode !== 'off' && pWeb >= 0.5)
 
-      // 3. LLM answer, then cache it.
-      const reply = await chat(this.env, [{ role: 'system', content: TUTOR_SYSTEM + ctx + web }, ...history], data.byok as Byok | undefined)
-      remember(reply)
-      await store(this.env, 'tutor', key, vec, reply, sources).catch(() => {})
-      conn.send(JSON.stringify({ type: 'answer', id: data.id, text: reply, sources, provider, topic: route.ok ? route.fields.topic?.value : null }))
+      // 3. Web search when needed: Cloudflare Web Search first, Exa as backup.
+      let sources: { title: string; url: string }[] = []
+      let searchBlock = ''
+      if (wantWeb) {
+        status('Searching the web…')
+        const found = await webSearch(this.env, question, search)
+        if (found?.results.length) {
+          sources = found.results.map((r) => ({ title: r.title, url: r.url }))
+          searchBlock = asContext(found)
+        }
+      }
+
+      status('Thinking…')
+      const sys = TUTOR_SYSTEM + '\nThe screen context is background. Answer the latest question; use the screen when the question refers to it ("this", "here", "my pick"). Any film, animation or Blender question is welcome. Earlier messages may be about other screens.' + (searchBlock ? `\n\n${searchBlock}` : '')
+      const reply = await chat(this.env, [{ role: 'system', content: sys }, ...history], byok)
+      this.setState({ history: [...history, { role: 'assistant' as const, content: reply }].slice(-16) })
+      conn.send(JSON.stringify({ type: 'answer', id: data.id, text: reply, sources, topic: route.ok ? route.fields.topic?.value : null, model: modelName(this.env, byok) }))
+
+      // 4. Remember the answer for the next learner who asks the same thing here.
+      await store(this.env, 'tutor', screen, question, reply, sources, modelName(this.env, byok)).catch(() => {})
     } catch (e: any) {
       conn.send(JSON.stringify({ type: 'error', id: data.id, text: String(e?.message ?? e) }))
     }

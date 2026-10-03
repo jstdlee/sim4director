@@ -5,7 +5,11 @@ export interface Step {
   choices: Choice[]
   answer: string          // choice id
   why: string             // short static explanation (AI expands on demand)
+  brief?: Brief           // scenes: the situation on set at this checkpoint
 }
+
+/** Situation at a scene checkpoint: what is on set now. */
+export interface Brief { label: string; date: string; facts: string[]; note?: string }
 
 export interface Question {
   id: string

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Mascot from '../components/Mascot.vue'
 import { computed, ref } from 'vue'
 import { TERMS, CATS, CAT_MAP, TERM_MAP } from '../lib/content'
 import { useApp } from '../stores/app'
@@ -18,7 +19,7 @@ const front = ref<'name' | 'zh' | 'ja'>('name')
 
 <template>
   <div class="wrap">
-    <h1>Concept cards <span class="tr" translate="no">概念卡 · 概念カード</span></h1>
+    <header class="phead"><h1>Concept cards <span class="tr" translate="no">概念卡 · 概念カード</span></h1><Mascot pose="study" :size="96" /></header>
     <div class="row filters">
       <input v-model="q" class="grow" placeholder="Search English / 中文 / 日本語" aria-label="Search terms" />
       <label class="row"><input v-model="weakOnly" type="checkbox" style="width:auto" /> Needs review</label>

@@ -6,3 +6,4 @@ worker-configuration.d.ts
 .prod-token
 design/**/w.*
 design/*.log
+design/**/cut/
