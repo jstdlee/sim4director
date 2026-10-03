@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sim4Director</title>
+<style>
+:root{--bg:#f4f4f6;--card:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e3e3e8;--acc:#3b6fe0;--ok:#2e9a5a;--bad:#d4473b}
+@media (prefers-color-scheme:dark){:root{--bg:#16171b;--card:#22242a;--fg:#ececf0;--mut:#9a9ca5;--line:#33353d;--acc:#7aa2ff;--ok:#5fcf8a;--bad:#ff7b6e}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,"Noto Sans CJK SC","Hiragino Sans",sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;gap:12px;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:16px;margin:0 8px 0 0}
+nav button,.seg button{border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:6px 12px;border-radius:8px;cursor:pointer}
+nav button.on,.seg button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#stats{margin-left:auto;color:var(--mut);font-size:12px}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+input,select{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;transition:transform .15s}
+.c:hover{transform:translateY(-2px)}
+.c .cat{font-size:11px;color:#fff;padding:2px 8px;border-radius:10px;display:inline-block}
+.c h3{margin:8px 0 2px;font-size:15px}.c .tr{color:var(--mut);font-size:13px}
+.c p{margin:8px 0 0}.c.learned{border-color:var(--ok)}
+.rel{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px}.rel span{font-size:11px;border:1px solid var(--line);padding:1px 6px;border-radius:8px;cursor:pointer}
+.big{max-width:640px;margin:20px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
+.big h2{margin:6px 0}.opts button{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer;font-size:14px}
+.opts button.ok{background:var(--ok);color:#fff}.opts button.bad{background:var(--bad);color:#fff}
+.fb{margin-top:10px;color:var(--mut)}.row{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:14px}
+.btn{background:var(--acc);color:#fff;border:0;padding:8px 16px;border-radius:8px;cursor:pointer}
+.flip{min-height:220px;display:flex;flex-direction:column;justify-content:center;text-align:center}
+#map{width:100%;height:72vh;background:var(--card);border:1px solid var(--line);border-radius:12px;touch-action:none}
+#map text{font-size:10px;fill:var(--fg);pointer-events:none}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin:8px 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+.src h3{margin:16px 0 4px}.src a{color:var(--acc)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}.bar div{height:100%;background:var(--ok)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips span{background:var(--card);border:1px dashed var(--line);padding:3px 8px;border-radius:8px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+ <h1>🎬 Sim4Director</h1>
+ <nav id="nav">
+  <button data-v="cards" class="on">Cards 卡片</button>
+  <button data-v="study">Flashcards 闪卡</button>
+  <button data-v="quest">Quests 测验</button>
+  <button data-v="map">Knowledge Map 知识图</button>
+  <button data-v="paths">Paths & Sources 路径/资源</button>
+ </nav>
+ <div id="stats"></div>
+</header>
+<main id="app"></main>
+
+<script src="data/cards1.js"></script>
+<script src="data/cards2.js"></script>
+<script src="data/cards3.js"></script>
+<script src="data/quests.js"></script>
+<script>
+const CATS={story:["Story 故事","#e0743b"],director:["Directing 导演","#b44fd1"],camera:["Camera 摄影","#3b6fe0"],composition:["Composition 构图","#2fa3b5"],lighting:["Lighting 灯光","#e0b43b"],editing:["Editing 剪辑","#d14f7a"],sound:["Sound 声音","#7a5fd1"],preprod:["Pre-prod & Pipeline 前期","#5a8f3a"],anim_principle:["Anim Principles 动画法则","#e05a5a"],anim_tech:["Anim Technique 动画技术","#c0392b"],modeling:["Modeling 建模","#2e9a5a"],rigging:["Rigging 绑定","#16a085"],blender:["Blender Flow 流程","#ea7600"],color:["Color 色彩","#9b59b6"],history:["History 电影史","#7f8c8d"],modern:["AI & Modern 现代","#34495e"]};
+const C=window.CARDS.map(a=>({id:a[0],cat:a[1],en:a[2],zh:a[3],ja:a[4],ex:a[5],rel:a[6]||[]}));
+const BY=Object.fromEntries(C.map(c=>[c.id,c]));
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let learned=new Set(store.get("s4d_learned",[])),score=store.get("s4d_score",{ok:0,n:0});
+const $=s=>document.querySelector(s),app=$("#app");
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function stats(){$("#stats").textContent=`${C.length} concepts · ${QUESTS.length} quests · learned ${learned.size} · quiz ${score.ok}/${score.n}`}
+function save(){store.set("s4d_learned",[...learned]);store.set("s4d_score",score);stats()}
+function tag(c){const [n,col]=CATS[c.cat];return `<span class="cat" style="background:${col}">${n}</span>`}
+
+// ---- Quest bank: 3 auto types per card + scenarios ----
+const QUESTS=[];
+C.forEach(c=>{
+ const pool=C.filter(x=>x.id!==c.id),same=pool.filter(x=>x.cat===c.cat);
+ const pick=n=>shuffle(same.length>=n?same:pool).slice(0,n);
+ QUESTS.push({type:"def",card:c.id,q:`Which concept matches? 哪个概念？ どの概念？<br><i>"${esc(c.ex)}"</i>`,o:shuffle([c,...pick(3)]).map(x=>[x.en,x.id===c.id])});
+ QUESTS.push({type:"zh",card:c.id,q:`中文「${esc(c.zh)}」 = ?`,o:shuffle([c,...pick(3)]).map(x=>[`${x.en} · ${x.ja}`,x.id===c.id])});
+ QUESTS.push({type:"ja",card:c.id,q:`日本語「${esc(c.ja)}」の意味は？`,o:shuffle([c,...pick(3)]).map(x=>[x.ex,x.id===c.id])});
+});
+window.SCENARIOS.forEach(s=>QUESTS.push({type:"scene",card:s[4],q:"🎬 "+esc(s[0]),o:s[1].map((t,i)=>[t,i===s[2]]),why:s[3]}));
+
+// ---- Views ----
+const views={
+cards(){
+ app.innerHTML=`<div class="toolbar"><input id="q" placeholder="Search EN / 中文 / 日本語" size="28"><select id="cf"><option value="">All categories 全部</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join("")}</select><select id="lf"><option value="">All</option><option value="new">Not learned</option><option value="done">Learned</option></select></div><div class="grid" id="g"></div>`;
+ const draw=()=>{const q=$("#q").value.toLowerCase(),cf=$("#cf").value,lf=$("#lf").value;
+  $("#g").innerHTML=C.filter(c=>(!cf||c.cat===cf)&&(!lf||(lf==="done")===learned.has(c.id))&&(!q||(c.en+c.zh+c.ja+c.ex).toLowerCase().includes(q))).map(card).join("")};
+ ["q","cf","lf"].forEach(i=>$("#"+i).oninput=draw);draw();
+ $("#g").onclick=e=>{const r=e.target.dataset.rel;if(r){$("#q").value=BY[r].en;$("#cf").value="";draw();return}
+  const el=e.target.closest(".c");if(el){const id=el.dataset.id;learned.has(id)?learned.delete(id):learned.add(id);save();el.classList.toggle("learned")}};
+},
+study(){
+ let deck=shuffle(C.filter(c=>!learned.has(c.id)));if(!deck.length)deck=shuffle(C);let i=0,back=false;
+ const draw=()=>{const c=deck[i];app.innerHTML=`<div class="big"><div class="row"><span>${tag(c)}</span><span>${i+1}/${deck.length}</span></div>
+  <div class="flip" id="f">${back?`<h2>${esc(c.en)}</h2><div>🇨🇳 ${esc(c.zh)}　🇯🇵 ${esc(c.ja)}</div><p>${esc(c.ex)}</p><div class="rel">${c.rel.filter(r=>BY[r]).map(r=>`<span>${esc(BY[r].en)}</span>`).join("")}</div>`:`<h2>${esc(c.en)}</h2><p class="tr">Explain it in your own words, then flip. 先自己解释再翻面。</p>`}</div>
+  <div class="row"><button class="btn" id="fl">Flip 翻面 (Space)</button><button class="btn" id="no" style="background:var(--bad)">Again 再学</button><button class="btn" id="yes" style="background:var(--ok)">Know it 已掌握</button></div></div>`;
+  $("#fl").onclick=()=>{back=!back;draw()};$("#yes").onclick=()=>{learned.add(c.id);save();next()};$("#no").onclick=()=>{deck.push(c);next()}};
+ const next=()=>{i++;back=false;if(i>=deck.length){app.innerHTML=`<div class="big"><h2>Deck done 🎉</h2><button class="btn" onclick="go('study')">Restart</button></div>`;return}draw()};
+ document.onkeydown=e=>{if(e.code==="Space"&&$("#fl")){e.preventDefault();$("#fl").click()}};draw();
+},
+quest(){
+ app.innerHTML=`<div class="toolbar"><div class="seg" id="mode">${["all","scene","def","zh","ja"].map((m,k)=>`<button data-m="${m}" class="${k?"":"on"}">${{all:"Mixed 混合",scene:"Scenarios 情景",def:"Definition 定义",zh:"中文",ja:"日本語"}[m]}</button>`).join("")}</div><select id="qc"><option value="">All categories</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join("")}</select></div><div id="qa"></div>`;
+ let mode="all",run=[],k=0,ok=0;
+ const start=()=>{const cf=$("#qc").value;run=shuffle(QUESTS.filter(q=>(mode==="all"||q.type===mode)&&(!cf||BY[q.card]?.cat===cf))).slice(0,20);k=0;ok=0;draw()};
+ const draw=()=>{if(k>=run.length){$("#qa").innerHTML=`<div class="big"><h2>Round score: ${ok}/${run.length}</h2><button class="btn" id="again">New round 新一轮</button></div>`;$("#again").onclick=start;return}
+  const q=run[k],c=BY[q.card];$("#qa").innerHTML=`<div class="big"><div class="row"><span>${c?tag(c):""}</span><span>Q ${k+1}/${run.length}</span></div><div class="bar"><div style="width:${k/run.length*100}%"></div></div><h3>${q.q}</h3><div class="opts">${q.o.map((o,i)=>`<button data-i="${i}">${esc(o[0])}</button>`).join("")}</div><div class="fb" id="fb"></div></div>`;
+  $(".opts").onclick=e=>{const b=e.target.closest("button");if(!b||$(".opts").dataset.done)return;$(".opts").dataset.done=1;const i=+b.dataset.i,right=q.o[i][1];
+   [...$(".opts").children].forEach((x,j)=>{if(q.o[j][1])x.classList.add("ok");else if(j===i)x.classList.add("bad")});
+   if(right)ok++;score.n++;if(right)score.ok++;save();
+   $("#fb").innerHTML=`${right?"✅":"❌"} ${q.why?esc(q.why)+"<br>":""}<b>${esc(c.en)}</b> · ${esc(c.zh)} · ${esc(c.ja)} — ${esc(c.ex)}<div class="row"><span></span><button class="btn" id="nx">Next 下一题 →</button></div>`;$("#nx").onclick=()=>{k++;draw()}}};
+ $("#mode").onclick=e=>{const b=e.target.closest("button");if(!b)return;mode=b.dataset.m;[...$("#mode").children].forEach(x=>x.classList.toggle("on",x===b));start()};
+ $("#qc").onchange=start;start();
+},
+map(){
+ app.innerHTML=`<div class="legend">${Object.entries(CATS).map(([k,v])=>`<span><i style="background:${v[1]}"></i>${v[0]}</span>`).join("")}</div><p class="tr" style="color:var(--mut)">Drag to pan, wheel to zoom, click a node to read it. Big nodes are category hubs. 拖动平移，滚轮缩放，点击节点。</p><svg id="map"></svg><div id="info" class="big" style="display:none"></div><h3>Explore next 拓展概念</h3><div class="chips">${window.EXPLORE.map(x=>`<span>${esc(x)}</span>`).join("")}</div>`;
+ const svg=$("#map"),W=svg.clientWidth,H=svg.clientHeight,NS="http://www.w3.org/2000/svg";
+ const hubs=Object.keys(CATS).map((k,i,a)=>({id:"#"+k,hub:1,cat:k,x:W/2+Math.cos(i/a.length*6.283)*W*.33,y:H/2+Math.sin(i/a.length*6.283)*H*.38,label:CATS[k][0]}));
+ const nodes=[...hubs,...C.map(c=>{const h=hubs.find(x=>x.cat===c.cat);return{id:c.id,cat:c.cat,x:h.x+(Math.random()-.5)*80,y:h.y+(Math.random()-.5)*80,label:c.en}})];
+ const N=Object.fromEntries(nodes.map(n=>[n.id,n])),links=[];
+ C.forEach(c=>{links.push([c.id,"#"+c.cat,1]);c.rel.forEach(r=>{if(N[r]&&c.id<r)links.push([c.id,r,0])})});
+ for(let it=0;it<260;it++){const a=.02*(1-it/260)+.002;
+  for(const n of nodes){n.vx=0;n.vy=0}
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const p=nodes[i],q=nodes[j];let dx=p.x-q.x,dy=p.y-q.y,d2=dx*dx+dy*dy+.01;if(d2>40000)continue;const f=900/d2;p.vx+=dx*f;p.vy+=dy*f;q.vx-=dx*f;q.vy-=dy*f}
+  for(const [s,t,h] of links){const p=N[s],q=N[t],dx=q.x-p.x,dy=q.y-p.y,d=Math.hypot(dx,dy)||1,L=h?60:110,f=(d-L)/d*(h?.12:.03);p.vx+=dx*f;p.vy+=dy*f;if(!q.hub){q.vx-=dx*f;q.vy-=dy*f}}
+  for(const n of nodes){if(n.hub)continue;n.x+=Math.max(-20,Math.min(20,n.vx));n.y+=Math.max(-20,Math.min(20,n.vy))}}
+ const g=document.createElementNS(NS,"g");svg.appendChild(g);
+ const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);g.appendChild(e);return e};
+ links.forEach(([s,t,h])=>el("line",{x1:N[s].x,y1:N[s].y,x2:N[t].x,y2:N[t].y,stroke:h?CATS[N[s].cat][1]:"var(--line)","stroke-opacity":h?.25:.8,"data-a":s,"data-b":t}));
+ nodes.forEach(n=>{const c=el("circle",{cx:n.x,cy:n.y,r:n.hub?16:learned.has(n.id)?7:5,fill:CATS[n.cat][1],stroke:learned.has(n.id)?"var(--ok)":"none","stroke-width":2,"data-id":n.id,style:"cursor:pointer"});
+  const t=el("text",{x:n.x+(n.hub?18:8),y:n.y+3});t.textContent=n.label;if(n.hub)t.setAttribute("style","font-size:13px;font-weight:700")});
+ let vb=[0,0,W,H];const setVB=()=>svg.setAttribute("viewBox",vb.join(" "));setVB();
+ svg.onwheel=e=>{e.preventDefault();const s=e.deltaY>0?1.15:.87,r=svg.getBoundingClientRect(),mx=vb[0]+(e.clientX-r.left)/r.width*vb[2],my=vb[1]+(e.clientY-r.top)/r.height*vb[3];vb=[mx-(mx-vb[0])*s,my-(my-vb[1])*s,vb[2]*s,vb[3]*s];setVB()};
+ let drag=null;svg.onpointerdown=e=>{drag=[e.clientX,e.clientY,vb[0],vb[1],0]};
+ svg.onpointermove=e=>{if(!drag)return;const r=svg.getBoundingClientRect();drag[4]=1;vb[0]=drag[2]-(e.clientX-drag[0])*vb[2]/r.width;vb[1]=drag[3]-(e.clientY-drag[1])*vb[3]/r.height;setVB()};
+ svg.onpointerup=e=>{const moved=drag&&Math.hypot(e.clientX-drag[0],e.clientY-drag[1])>4;drag=null;if(moved)return;const id=e.target.dataset?.id;if(!id)return;
+  g.querySelectorAll("line").forEach(l=>l.setAttribute("stroke-opacity",(l.dataset.a===id||l.dataset.b===id)?1:.12));
+  const info=$("#info");info.style.display="block";
+  if(id[0]==="#"){const k=id.slice(1);info.innerHTML=`<h2>${CATS[k][0]}</h2><p>${C.filter(c=>c.cat===k).map(c=>esc(c.en)).join(" · ")}</p>`}
+  else{const c=BY[id];info.innerHTML=`${tag(c)}<h2>${esc(c.en)}</h2><div>🇨🇳 ${esc(c.zh)}　🇯🇵 ${esc(c.ja)}</div><p>${esc(c.ex)}</p><div class="rel">${c.rel.filter(r=>BY[r]).map(r=>`<span>${esc(BY[r].en)}</span>`).join("")}</div>`}
+  info.scrollIntoView({behavior:"smooth",block:"nearest"})};
+},
+paths(){
+ const P=[["1 · Storyteller 讲故事的人",["premise","logline","three_act","kishotenketsu","want_need","character_arc","scene_goal","subtext","setup_payoff","dramatic_irony","pixar_rules"]],
+ ["2 · Film Language 电影语言",["shot_size","camera_angle","focal_length","dof","composition","180_rule","camera_movement","lighting_three_point","low_key","color_contrast"]],
+ ["3 · Cutting & Sound 剪辑与声音",["kuleshov","continuity_editing","match_cut","cross_cutting","l_cut","pacing","murch_rule","diegetic","foley","silence"]],
+ ["4 · Directing 导演",["director_role","vision","lookbook","shot_list","blocking","coverage","actor_direction","objective","storyboard","animatic","color_script"]],
+ ["5 · Animation 动画",["twelve_principles","bouncing_ball","timing","spacing","squash_stretch","anticipation","arcs","follow_through","blocking_anim","spline_pass","walk_cycle","acting_anim","lip_sync"]],
+ ["6 · Blender Build 建模到渲染",["blender_ui","grs","modeling_overview","topology","subdivision","uv_unwrap","principled_bsdf","armature","skinning","ik","camera_blender","render_engine","compositor","output_settings"]]];
+ app.innerHTML=P.map(([t,ids])=>{const d=ids.filter(i=>learned.has(i)).length;return `<div class="big" style="max-width:none"><div class="row" style="margin:0"><h3 style="margin:0">${t}</h3><span>${d}/${ids.length}</span></div><div class="bar" style="margin:8px 0"><div style="width:${d/ids.length*100}%"></div></div><div class="rel">${ids.map(i=>`<span style="${learned.has(i)?"border-color:var(--ok)":""}">${esc(BY[i].en)} · ${esc(BY[i].zh)}</span>`).join(" → ")}</div></div>`}).join("")+
+ `<div class="big src" style="max-width:none"><h2>Outer sources 外部资源 / 外部リソース</h2>${window.SOURCES.map(([h,l])=>`<h3>${h}</h3>${l.map(([n,u])=>`<div><a href="${u}" target="_blank" rel="noopener">${esc(n)}</a></div>`).join("")}`).join("")}</div>`;
+}};
+function card(c){return `<div class="c ${learned.has(c.id)?"learned":""}" data-id="${c.id}">${tag(c)}<h3>${esc(c.en)}</h3><div class="tr">🇨🇳 ${esc(c.zh)}<br>🇯🇵 ${esc(c.ja)}</div><p>${esc(c.ex)}</p><div class="rel">${c.rel.filter(r=>BY[r]).map(r=>`<span data-rel="${r}">${esc(BY[r].en)}</span>`).join("")}</div></div>`}
+function go(v){document.onkeydown=null;[...$("#nav").children].forEach(b=>b.classList.toggle("on",b.dataset.v===v));views[v]();store.set("s4d_view",v)}
+$("#nav").onclick=e=>{const v=e.target.dataset.v;if(v)go(v)};
+stats();go(store.get("s4d_view","cards"));
+</script>
+</body>
+</html>

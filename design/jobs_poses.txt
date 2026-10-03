@@ -1,0 +1,15 @@
+smile|Pose her standing relaxed with both hands behind her back and a warm, gentle closed-mouth smile.
+wave|Pose her waving hello with one hand raised high, the other hand on her hip, a bright open-mouth smile.
+point|Pose her turned slightly to the side, pointing with one arm stretched out toward the right edge of the image, looking the same way with a helpful, explaining expression.
+think|Pose her thinking: one finger on her chin, eyes looking up, head tilted, a small curious mouth.
+laugh|Pose her laughing happily with eyes closed in happy arcs and both hands near her cheeks.
+cheer|Pose her jumping with both fists raised high in celebration, huge smile, small sparkles around her.
+oops|Pose her embarrassed after a small mistake: one hand scratching the back of her head, a sheepish smile, a small sweat drop.
+sleep|Pose her sitting and dozing, head tilted, eyes closed, hugging a pillow shaped like a film reel, a small zzz bubble without letters.
+study|Pose her sitting cross-legged reading an open storyboard notebook with a pencil, focused expression.
+thumbs|Pose her giving a big thumbs-up toward the viewer with a wink and a confident smile.
+surprised|Pose her surprised: wide eyes, open mouth, both hands raised at shoulder height.
+sign|Pose her holding a big blank white sign board in front of her chest with both hands, smiling. The board is completely empty.
+director|Pose her as a film director: framing the viewer with both hands making a rectangle with thumbs and index fingers, one eye closed, playful smile.
+clap|Pose her holding a film clapperboard open, about to clap it, excited expression. The clapperboard has no writing.
+head|Show only her head and shoulders, front view, bright smile, like a chat avatar.

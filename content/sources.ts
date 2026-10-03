@@ -1,0 +1,72 @@
+// Outside sources for deeper study.
+export const SOURCES: { group: string; links: { name: string; url: string; note?: string }[] }[] = [
+  { group: "Books – Story", links: [
+    { name: "Robert McKee – Story", url: "https://mckeestory.com/" },
+    { name: "Blake Snyder – Save the Cat!", url: "https://savethecat.com/" },
+    { name: "Christopher Vogler – The Writer's Journey", url: "https://en.wikipedia.org/wiki/The_Writer%27s_Journey" },
+    { name: "Pixar's 22 Rules of Storytelling", url: "https://en.wikipedia.org/wiki/Emma_Coats" },
+  ] },
+  { group: "Books – Directing & Film Language", links: [
+    { name: "Steven Katz – Film Directing Shot by Shot", url: "https://en.wikipedia.org/wiki/Film_Directing_Shot_by_Shot" },
+    { name: "Walter Murch – In the Blink of an Eye", url: "https://en.wikipedia.org/wiki/In_the_Blink_of_an_Eye_(Murch_book)" },
+    { name: "Bruce Block – The Visual Story", url: "https://www.routledge.com/The-Visual-Story/Block/p/book/9781138014152" },
+    { name: "Judith Weston – Directing Actors", url: "https://en.wikipedia.org/wiki/Judith_Weston" },
+    { name: "Sidney Lumet – Making Movies", url: "https://en.wikipedia.org/wiki/Making_Movies" },
+  ] },
+  { group: "Books – Animation", links: [
+    { name: "Thomas & Johnston – The Illusion of Life", url: "https://en.wikipedia.org/wiki/The_Illusion_of_Life" },
+    { name: "Richard Williams – The Animator's Survival Kit", url: "https://en.wikipedia.org/wiki/The_Animator%27s_Survival_Kit" },
+    { name: "Ed Hooks – Acting for Animators", url: "https://en.wikipedia.org/wiki/Ed_Hooks" },
+  ] },
+  { group: "Blender", links: [
+    { name: "Blender Manual", url: "https://docs.blender.org/manual/en/latest/" },
+    { name: "Blender Studio (open films + courses)", url: "https://studio.blender.org/" },
+    { name: "Blender Open Movies", url: "https://www.blender.org/about/projects/" },
+    { name: "Poly Haven (free HDRI/textures/models)", url: "https://polyhaven.com/" },
+    { name: "Blender Python API", url: "https://docs.blender.org/api/current/" },
+  ] },
+  { group: "Video channels", links: [
+    { name: "StudioBinder (shot types, directing)", url: "https://www.youtube.com/@StudioBinder" },
+    { name: "Every Frame a Painting", url: "https://www.youtube.com/@everyframeapainting" },
+    { name: "Lessons from the Screenplay", url: "https://www.youtube.com/@LessonsfromtheScreenplay" },
+    { name: "Alan Becker – 12 Principles", url: "https://www.youtube.com/watch?v=uDqjIdI4bF4" },
+    { name: "Blender Guru (donut tutorial)", url: "https://www.youtube.com/@blenderguru" },
+    { name: "CG Cookie", url: "https://cgcookie.com/" },
+  ] },
+  { group: "Free study tools", links: [
+    { name: "ShotDeck (film stills reference)", url: "https://shotdeck.com/" },
+    { name: "FILMGRAB", url: "https://film-grab.com/" },
+    { name: "Sakugabooru (anime key animation clips)", url: "https://www.sakugabooru.com/" },
+    { name: "No Film School", url: "https://nofilmschool.com/" },
+  ] },
+]
+
+// Concepts not carded yet: next things to explore.
+export const EXPLORE: string[] = [
+  "Whip pan 甩镜 / ホイップパン",
+  "Snorricam 身体摄像机",
+  "Iris shot 圈入圈出",
+  "Split diopter 分屈光镜",
+  "Hitchcock zoom variants",
+  "Cinéma vérité 真实电影",
+  "Dogme 95 道格玛95",
+  "Mumblecore",
+  "Steadicam operator craft",
+  "Day for night 日拍夜",
+  "Fluid sim (Mantaflow)",
+  "Particle hair grooming",
+  "Cryptomatte 加密遮罩",
+  "ACES color pipeline",
+  "OpenEXR multilayer",
+  "USD 通用场景描述",
+  "Unreal Sequencer",
+  "Live2D",
+  "Toon Boom Harmony",
+  "Clip Studio Paint",
+  "Anime 撮影 (compositing) stage",
+  "作画監督 animation director role",
+  "Background art 美術背景",
+  "Layout-checking 演出チェック",
+  "Festival & distribution 发行",
+  "Copyright & clearance 版权",
+]

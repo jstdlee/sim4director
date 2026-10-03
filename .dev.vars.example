@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local dev. Comma-separate several tokens.
+ACCESS_TOKEN=replace-with-a-long-random-token
+
+# Optional: backup web search when Cloudflare Web Search has no credits (https://dashboard.exa.ai/api-keys)
+EXA_API_KEY=

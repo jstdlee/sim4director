@@ -1,0 +1,6 @@
+outfit_daily|Dress her in a casual daily outfit: cream knit cardigan over a yellow t-shirt, light denim jeans, red sneakers, small crossbody camera bag.
+outfit_college|Dress her for university: oversized sunny-yellow varsity jacket with a film-reel patch, white tee, brown pleated midi skirt, white socks, loafers, holding a laptop and a coffee cup.
+outfit_school|Dress her in a Japanese school uniform: navy sailor-style blazer uniform with a yellow ribbon tie, navy pleated knee-length skirt, navy knee socks, brown loafers, school bag with a sun charm.
+outfit_date|Dress her for a cinema date with friends: pastel yellow puff-sleeve blouse, coral knee-length flared skirt, small white shoulder bag, white sneakers, holding two movie tickets and a popcorn box.
+outfit_sleep|Dress her in cozy sleepwear: loose yellow pajama set with small sun and film-reel prints, long sleeves and long trousers, fluffy slippers, hugging a pillow, sleepy smile.
+outfit_beach|Dress her for the beach: modest coral one-piece swimsuit with a white knee-length beach shorts and an open light-yellow beach shirt over it, straw sun hat, sandals, holding a waterproof camera.
